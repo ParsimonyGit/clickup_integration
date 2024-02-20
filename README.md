@@ -1,2 +1,7 @@
-# clickup_integration
+## Clickup Integration
+
 ERPNext Integration with Clickup
+
+#### License
+
+mit
