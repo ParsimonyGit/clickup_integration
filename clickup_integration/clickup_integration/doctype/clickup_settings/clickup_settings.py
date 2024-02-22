@@ -68,7 +68,7 @@ class ClickupSettings(Document):
 					frappe.db.commit()
 				self.get_lists(folder_id=folder.get("id"), project=project)
 
-	def get_lists(self, folder_id, project=None):
+	def get_lists(self, folder_id, project):
 		response = requests.get(
 			GET_LISTS.format(folder_id=folder_id),
 			headers= {

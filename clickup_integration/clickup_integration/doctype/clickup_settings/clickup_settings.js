@@ -8,7 +8,7 @@ frappe.ui.form.on("Clickup Settings", {
 				method: "clickup_integration.clickup_integration.doctype.clickup_settings.clickup_settings.sync_tasks",
 				callback(r) {
 					if (r.message) {
-						frappe.msgprint(__("Background Job is created to sync to the Data"));
+						frappe.msgprint(__("A background job is created to sync data from Clickup"));
 					}
 				},
 			});
