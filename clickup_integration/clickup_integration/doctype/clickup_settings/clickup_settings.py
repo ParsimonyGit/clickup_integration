@@ -44,21 +44,9 @@ class ClickupSettings(Document):
 		if response.status_code == 200:
 			response = frappe.parse_json(response.content.decode())
 			for space in response.get("spaces"):
-				task_name = frappe.db.exists("Task", {"is_group": 1, "subject": space.get("name")})
-				if not task_name:
-					task_doc = frappe.new_doc("Task")
-					task_doc.update({
-						"subject": space.get("name"),
-						"is_group": 1,
-						"space_id": space.get("id"),
-						"space_name": space.get("name")
-					})
-					task_doc.save()
-					task_name = task_doc.name
-					frappe.db.commit()
-				self.get_folders(space_id=space.get("id"), parent_task=task_name)
+				self.get_folders(space_id=space.get("id"))
 
-	def get_folders(self, space_id, parent_task=None):
+	def get_folders(self, space_id):
 		response = requests.get(
 			GET_FOLDERS.format(space_id=space_id),
 			headers= {
@@ -78,9 +66,9 @@ class ClickupSettings(Document):
 					project_doc.save()
 					project = project_doc.name
 					frappe.db.commit()
-				self.get_lists(folder_id=folder.get("id"), project=project, parent_task=parent_task)
+				self.get_lists(folder_id=folder.get("id"), project=project)
 
-	def get_lists(self, folder_id, project=None, parent_task=None):
+	def get_lists(self, folder_id, project=None):
 		response = requests.get(
 			GET_LISTS.format(folder_id=folder_id),
 			headers= {
@@ -91,10 +79,10 @@ class ClickupSettings(Document):
 		if response.status_code == 200:
 			response = frappe.parse_json(response.content.decode())
 			for list in response.get("lists"):
-				self.get_tasks(list_id=list.get("id"), project=project, parent_task=parent_task)
+				self.get_tasks(list_id=list.get("id"), project=project)
 
 
-	def get_tasks(self, list_id, project, parent_task):
+	def get_tasks(self, list_id, project):
 		response = requests.get(
 			GET_TASKS.format(list_id=list_id),
 			headers= {
@@ -105,80 +93,128 @@ class ClickupSettings(Document):
 		if response.status_code == 200:
 			response = frappe.parse_json(response.content.decode())
 			for d in response.get("tasks"):
-				self.get_task_and_create_task(task_id=d.get("id"), project=project, parent_task=parent_task)
+				self.get_task_and_create_task(task_id=d.get("id"), project=project)
 
-	def get_task_and_create_task(self, task_id, project=None, parent_task=None):
+	def get_task_and_create_task(self, task_id, project=None):
 		response = requests.get(
 			GET_TASK.format(task_id=task_id),
 			headers= {
 				"Content-Type": "application/json",
 				"Authorization": self.get_password("access_token")
-			}
+			},
+			params={"include_subtasks": "true"}
 		)
 		if response.status_code == 200:
 			response = frappe.parse_json(response.content.decode())
 			existing_task = frappe.db.exists("Task", {"task_id": response.get("id")})
 			if existing_task:
-				for attachment in response.get("attachments"):
-					if frappe.db.exists("File", {"clickup_attachment_id": attachment.get("id")}):
-							continue
-
-					file_response = requests.get(attachment.get("url"))
-					if file_response.status_code == 200:
-						filename = urllib.parse.unquote(attachment.get("url").split("/")[-1])
-						file_doc = frappe.get_doc({
-							"doctype": "File",
-							"file_name": filename,
-							"attached_to_doctype": "Task",
-							"content": file_response.content,
-							"attached_to_name": existing_task,
-							"clickup_attachment_id": attachment.get("id")
-						})
-						file_doc.save()
+				if response.get("attachments"):
+					self.attach_files(attachments=response.get("attachments"), task=existing_task)
 
 				self.get_comments(task_id=response.get("id"), task=existing_task)
 				return
 
-			task = frappe.new_doc("Task")
-			task.update({
-				"subject": response.get("name"),
-				"description": response.get("description"),
-				"project": project,
-				"parent_task": parent_task,
-				"task_id": response.get("id"),
-				"space_id": response.get("space").get("id"),
-				"list_id": response.get("list").get("id"),
-				"list_name": response.get("list").get("name"),
-				"folder_id": response.get("folder").get("id"),
-				"folder_name": response.get("folder").get("name")
-			})
-			task.save()
-			frappe.db.commit()
-			for assignee in response.get("assignees"):
-				if frappe.db.exists("User", {"email": assignee.get("email"), "enabled": 1}):
-					assign_task({
-						"assign_to": [assignee.get("email")],
-						"doctype": "Task",
-						"name": task.name
-					})
-			self.get_comments(task_id=response.get("id"), task=task.name)
-			for attachment in response.get("attachments"):
-				if frappe.db.exists("File", {"clickup_attachment_id": attachment.get("id")}):
+			task = self.create_task(clickup_task=response, project=project)
+
+	def create_task(self, clickup_task, project):
+		task = frappe.new_doc("Task")
+		task.update({
+			"subject": clickup_task.get("name"),
+			"description": clickup_task.get("description"),
+			"project": project,
+			# "parent_task": parent_task,
+			"task_id": clickup_task.get("id"),
+			"space_id": clickup_task.get("space").get("id"),
+			"list_id": clickup_task.get("list").get("id"),
+			"list_name": clickup_task.get("list").get("name"),
+			"folder_id": clickup_task.get("folder").get("id"),
+			"folder_name": clickup_task.get("folder").get("name")
+		})
+		task.save()
+		frappe.db.commit()
+
+		if clickup_task.get("assignees"):
+				self.assign_users(assignees=clickup_task.get("assignees"), task=task.name)
+
+		self.get_comments(task_id=clickup_task.get("id"), task=task.name)
+
+		if clickup_task.get("attachments"):
+			self.attach_files(attachments=clickup_task.get("attachments"), task=task.name)
+
+		if clickup_task.get("subtasks"):
+			self.create_sub_tasks(subtasks=clickup_task.get("subtasks"), project=project, parent_task=task.name)
+
+		return task.name
+
+	def create_sub_tasks(self, subtasks, project, parent_task):
+		for subtask in subtasks:
+			existing_task = frappe.db.exists("Task", {"task_id": subtask.get("id")})
+			if existing_task:
+				if response.get("attachments"):
+					self.attach_files(attachments=response.get("attachments"), task=existing_task)
+				self.get_comments(task_id=subtask.get("id"), task=existing_task)
+				continue
+
+			response = requests.get(
+				GET_TASK.format(task_id=subtask.get("id")),
+				headers= {
+					"Content-Type": "application/json",
+					"Authorization": self.get_password("access_token")
+				},
+			)
+			if response.status_code == 200:
+				response = frappe.parse_json(response.content.decode())
+				task = frappe.new_doc("Task")
+				task.update({
+					"subject": response.get("name"),
+					"description": response.get("description"),
+					"project": project,
+					"parent_task": parent_task,
+					"task_id": response.get("id"),
+					"space_id": response.get("space").get("id"),
+					"list_id": response.get("list").get("id"),
+					"list_name": response.get("list").get("name"),
+					"folder_id": response.get("folder").get("id"),
+					"folder_name": response.get("folder").get("name")
+				})
+				task.save()
+				frappe.db.commit()
+
+				if response.get("assignees"):
+					self.assign_users(assignees=response.get("assignees"), task=task.name)
+
+				self.get_comments(task_id=response.get("id"), task=task.name)
+
+				if response.get("attachments"):
+					self.attach_files(attachments=response.get("attachments"), task=task.name)
+
+
+	def attach_files(self, attachments, task):
+		for attachment in attachments:
+			if frappe.db.exists("File", {"clickup_attachment_id": attachment.get("id")}):
 					continue
 
-				file_response = requests.get(attachment.get("url"))
-				if file_response.status_code == 200:
-					filename = urllib.parse.unquote(attachment.get("url").split("/")[-1])
-					file_doc = frappe.get_doc({
-						"doctype": "File",
-						"file_name": filename,
-						"attached_to_doctype": "Task",
-						"content": file_response.content,
-						"attached_to_name": task.name,
-						"clickup_attachment_id": attachment.get("id")
-					})
-					file_doc.save()
-		frappe.db.commit()
+			file_response = requests.get(attachment.get("url"))
+			if file_response.status_code == 200:
+				filename = urllib.parse.unquote(attachment.get("url").split("/")[-1])
+				file_doc = frappe.get_doc({
+					"doctype": "File",
+					"file_name": filename,
+					"attached_to_doctype": "Task",
+					"content": file_response.content,
+					"attached_to_name": task,
+					"clickup_attachment_id": attachment.get("id")
+				})
+				file_doc.save()
+
+	def assign_users(self, assignees, task):
+		for assignee in assignees:
+			if frappe.db.exists("User", {"email": assignee.get("email"), "enabled": 1}):
+				assign_task({
+					"assign_to": [assignee.get("email")],
+					"doctype": "Task",
+					"name": task
+				})
 
 	def get_comments(self, task_id, task):
 		response = requests.get(
