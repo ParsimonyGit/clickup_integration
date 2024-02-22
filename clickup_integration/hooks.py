@@ -68,7 +68,8 @@ app_license = "mit"
 # ------------
 
 # before_install = "clickup_integration.install.before_install"
-# after_install = "clickup_integration.install.after_install"
+after_install = "clickup_integration.setup.setup_custom_fields"
+before_migrate = "clickup_integration.setup.setup_custom_fields"
 
 # Uninstallation
 # ------------

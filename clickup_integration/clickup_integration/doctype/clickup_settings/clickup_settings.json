@@ -1,0 +1,72 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2024-02-20 01:26:47.144224",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_break_ajaq",
+  "client_id",
+  "client_secret",
+  "redirect_url",
+  "access_token"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_break_ajaq",
+   "fieldtype": "Section Break",
+   "label": "Clickup Settings"
+  },
+  {
+   "fieldname": "client_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Client Id",
+   "reqd": 1
+  },
+  {
+   "fieldname": "client_secret",
+   "fieldtype": "Password",
+   "in_list_view": 1,
+   "label": "Client Secret",
+   "reqd": 1
+  },
+  {
+   "fieldname": "redirect_url",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Redirect URL",
+   "reqd": 1
+  },
+  {
+   "fieldname": "access_token",
+   "fieldtype": "Password",
+   "hidden": 1,
+   "label": "Access Token",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2024-02-20 01:28:45.035876",
+ "modified_by": "Administrator",
+ "module": "Clickup Integration",
+ "name": "Clickup Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
