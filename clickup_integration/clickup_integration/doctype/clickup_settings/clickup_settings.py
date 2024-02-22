@@ -236,7 +236,7 @@ class ClickupSettings(Document):
 					frappe.session.user = user
 					comment_content = comment.get("comment_text")
 				else:
-					comment_content = f"Commented By - {username}({user}) <br>" +  comment.get("comment_text")
+					comment_content = f"Commented By - {username} ({user}) <br>" +  comment.get("comment_text")
 
 				comment_doc = frappe.new_doc("Comment")
 				comment_doc.update({
